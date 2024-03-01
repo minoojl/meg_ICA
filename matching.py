@@ -43,8 +43,8 @@ def display_comparisons(directory_path1, directory_path2, Hungarian_matching, gr
     plt.show()
 
 # Use the function with specified directory paths and matching lists
-directory_path1 = "/Users/minoolou/Desktop/1/A00063430"
-directory_path2 = "/Users/minoolou/Desktop/1/A00066226"
+directory_path1 = "/Users/.../A00063430"
+directory_path2 = "/Users/.../A00066226"
 Hungarian_matching = [(0, 2), (1, 8), (2, 1),(3,6)]
 greedy_matching = [(0, 7), (1, 2), (2, 5),(3,9)]
 
