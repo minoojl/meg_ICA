@@ -85,23 +85,18 @@ def apply_greedy_algorithm(correlation_matrix, name):
 
         # Store the match in the similarity matrix and the index list
         greedy_similarity_matrix[row_idx, col_idx] = max_value
-        largest_similarity_indices.append(col_idx)
+        largest_similarity_indices.append((row_idx, col_idx))
 
         # Set the entire row and column for the chosen match to 0
         corr_matrix[row_idx, :] = 0
         corr_matrix[:, col_idx] = 0
 
-    # Print the column index of the largest similarity for each row
+    # Print
     print(f"Column index of the largest similarity for each row in {name}:")
 
-        # Modifying this part to print as requested
-    output_pairs = [(i, largest_similarity_indices[i]) for i in range(len(largest_similarity_indices))]
+        # print
+    output_pairs = largest_similarity_indices #[(i, largest_similarity_indices[i]) for i in range(len(largest_similarity_indices))]
     print(output_pairs)
-
-    # Save the results
-    np.save(f'ix_{name}_greedy.npy', largest_similarity_indices)
-    np.save(f'greedy_similarity_matrix_{name}.npy', greedy_similarity_matrix)
-    plt.imsave(f'{name}_greedy.png', greedy_similarity_matrix)
 
 # Apply the greedy algorithm to each pair of component sets
 apply_greedy_algorithm(abs_corr_s1_s2, 's1_s2')
