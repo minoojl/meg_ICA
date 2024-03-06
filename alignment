@@ -1,22 +1,21 @@
-    data_path = sample.data_path()
-    subject_dir1 = data_path / "subjects"
-    fname_fsaverage_src = subject_dir1 / "fsaverage" / "bem" / "fsaverage-ico-5-src.fif"
-    src_to = mne.read_source_spaces(fname_fsaverage_src)
-    sample_dir = data_path / "MEG" / "sample"
-    fname_stc = sample_dir / "sample_audvis-meg"
-    stc_mne = mne.read_source_estimate(fname_stc, subject="sample")
+data_path = Path(sample.data_path())
+subject_dir1 = data_path / "subjects"
+fname_fsaverage_src = subject_dir1 / "sample" / "bem" / "fsaverage-oct-6-src.fif"
+src_to = mne.read_source_spaces(fname_fsaverage_src)
+sample_dir = data_path / "MEG" / "sample"
+fname_stc = sample_dir / "sample_audvis-meg"
+stc_mne = mne.read_source_estimate(fname_stc)
 
-    #my_subjects_dir = "/data/users2/mjafarlou1/DevCog/"
-    #from mne dataset default to our subject
-    morph = mne.compute_source_morph(
-    #from mne dataset
-        stc_mne, #from
-        subject_from='sample', #from
+my_subjects_dir = "/data/users2/mjafarlou1/DevCog/"
+
+morph = mne.compute_source_morph(
+    src=src,  # Your source space
+    subject_from='00000001+bfcea372', 
     
-    #to our dataset
-        subject_to='00000001+bfcea372', #to subject
-        src_to=src, #to subject
-        subjects_dir="/data/users2/mjafarlou1/DevCog/", #to
-    )
-    stc_mne_aligned_to_ours = morph.apply(stc_mne)
-    stcs=stc_mne_aligned_to_ours
+    subject_to=None, 
+    subjects_dir=subject_dir1,  
+    src_to=src_to,  
+)
+
+stc_mne_aligned_to_ours = morph.apply(stcs)  
+stc=stc_mne_aligned_to_ours
