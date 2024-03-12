@@ -1,0 +1,131 @@
+import numpy as np
+import mne
+from scipy.ndimage import gaussian_filter1d
+import os
+
+# Load the source estimate data for the right hemisphere
+stc_path = "/Users/minoolou/Desktop/1/M87160608+Study20151230+eyesclosedopen_session1_raw_EC_segment_new_l_raw.stc-lh.stc"
+os.environ["SUBJECTS_DIR"] = "/Users/minoolou/Desktop/freesurfer/MNE-sample-data/subjects"
+subject = "fsaverage"
+output_dir = "/Users/minoolou/Desktop/1/A00063430"
+subjects_dir="/Users/minoolou/Desktop/freesurfer/MNE-sample-data/subjects"
+
+# Set the SUBJECTS_DIR environment variable for MNE to use
+os.environ["SUBJECTS_DIR"] = subjects_dir
+
+# Load the source estimate data
+stc = mne.read_source_estimate(stc_path, subject=subject)
+
+# Take the absolute value of the data
+abs_data = np.abs(stc.data)
+
+# Apply Gaussian smoothing
+sigma = 2  # Adjust based on your data
+smoothed_data = np.apply_along_axis(gaussian_filter1d, axis=1, arr=abs_data, sigma=sigma)
+
+# Define a threshold and find active vertices
+threshold = np.percentile(smoothed_data, 50)  # 80th percentile as threshold
+active_vertices = np.where(smoothed_data.mean(axis=1) > threshold)[0]
+
+# For simplicity, we'll assume active_data is the data for active vertices
+active_data = smoothed_data[active_vertices]
+
+# Function to find the center of mass
+def find_center_of_mass(data, vertices):
+
+    mass = np.sum(data, axis=1)  # Sum data across time to get the "mass" of each vertex
+    center_of_mass_value = np.argmax(mass)  # Find the index of the highest "mass"
+    center_of_mass_index = vertices[center_of_mass_value]  # Map to original vertex index
+    return center_of_mass_index
+
+# Compute center of mass for active vertices
+com_index = find_center_of_mass(active_data, active_vertices)
+
+# Convert the center of mass vertex to MNI coordinates
+hemi = 0 if "lh" in stc_path else 1  # Determine hemisphere based on file path
+mni_coordinates = mne.vertex_to_mni(com_index, hemis=hemi, subject=subject, subjects_dir=subjects_dir)
+
+print(f"Center of Mass MNI Coordinates: {mni_coordinates}")
+print(mni_coordinates)
+
+
+x=mni_coordinates[0]
+y=mni_coordinates[1]
+z=mni_coordinates[2]
+
+point=[x,y,z]
+
+def cartesian_to_spherical(x, y, z):
+    hxy = np.hypot(x, y)
+    r = np.hypot(hxy, z)    # radius
+    el = np.arctan2(z, hxy) # elevation
+    az = np.arctan2(y, x)   # azimuth
+    return az, el, r
+
+def center_on_point(point):
+    # Convert Cartesian coordinates (x, y, z) to spherical (azimuth, elevation, r)
+    azimuth, elevation, r = cartesian_to_spherical(*point)
+
+    # Convert azimuth and elevation from radians to degrees for the PySurfer view
+    azimuth_deg = np.rad2deg(azimuth)
+    elevation_deg = np.rad2deg(elevation)
+
+    # You might need to adjust these values to match the orientation of your data
+    azimuth_deg -= 90
+    elevation_deg = 90 - elevation_deg
+    roll = np.rad2deg(np.arctan2(np.cos(elevation), np.sin(elevation)))
+
+    # Set the camera position with the new azimuth, elevation, and distance
+    return azimuth_deg, elevation_deg, roll
+
+
+distance=800
+
+# Convert to visualization parameters
+azimuth_deg, elevation_deg, roll = center_on_point(point)
+
+print(f"Azimuth (deg): {azimuth_deg}")
+print(f"Elevation (deg): {elevation_deg}")
+print(f"Roll: {roll}")
+print(point)
+
+
+# Define the time range
+tmin, tmax = 0.073, 0.099
+
+#iterate over each time point in the specified range and visualize
+for time_point in stc.times[(stc.times >= tmin) & (stc.times <= tmax)]:
+    brain = stc.plot(
+        subject=subject,
+        hemi='both',
+        subjects_dir=os.environ["SUBJECTS_DIR"],
+        initial_time=time_point,
+        size=(800, 600),
+        time_viewer=False,
+        show_traces=False,
+        colorbar=False,
+    )
+
+        # Adjust the view to center around the maximum activation voxel
+    brain.show_view(
+        view="coronal",
+        roll=roll,
+        azimuth=azimuth_deg,
+        elevation=elevation_deg,
+        distance=800,
+    )
+
+    component_num = time_point * 1000
+    component_text = str(int(component_num)) 
+    brain.add_text(x=0.3, y=0.8, text=component_text, name='time_label', color='white')
+
+    # Optionally, save the brain view to an image
+    image_path = os.path.join(output_dir, f"COM_visualization_time_{time_point:.3f}.png")
+    brain.save_image(image_path)
+
+    # Save the image
+    image_path = os.path.join(output_dir, f"visualization_time_{time_point:.3f}.png")
+    brain.save_image(image_path)
+
+    break
+
