@@ -1,0 +1,178 @@
+import mne
+import os
+import numpy as np
+import mne
+import os
+import numpy as np
+from scipy.ndimage import gaussian_filter
+
+greedy_matching = [(92, 16), (65, 9), (2, 78), (66, 34), (42, 74), (77, 75), (39, 76), (54, 55), (82, 94), (50, 40), (88, 26), (34, 67), (4, 11), (15, 49), (67, 62), (41, 7), (60, 38), (17, 71), (49, 37), (91, 10), (85, 41), (90, 5), (25, 58), (98, 99), (36, 6), (79, 21), (28, 35), (70, 88), (46, 29), (48, 17), (53, 24), (94, 18), (86, 46), (58, 86), (18, 77), (96, 23), (40, 72), (52, 96), (61, 61), (89, 1), (31, 85), (62, 14), (78, 50), (33, 89), (69, 13), (72, 0), (14, 93), (37, 42), (11, 73), (93, 22), (21, 90), (56, 28), (10, 32), (38, 20), (8, 15), (20, 64), (24, 59), (3, 80), (84, 87), (16, 97), (13, 79), (95, 92), (47, 91), (97, 39), (30, 98), (55, 8), (12, 31), (63, 2), (75, 57), (7, 47), (5, 68), (43, 25), (87, 53), (74, 95), (76, 19), (19, 27), (27, 82), (44, 69), (51, 51), (83, 33), (80, 84), (68, 48), (22, 45), (29, 36), (6, 70), (23, 81), (71, 3), (1, 44), (26, 43), (45, 56), (64, 30), (73, 65), (9, 63), (59, 54), (32, 66), (0, 12), (57, 83), (81, 60), (35, 52)]
+
+# Define the range limits
+min_index = 0
+max_index = 1
+
+# Iterate over a subset of greedy_matching from min_index to max_index (inclusive)
+for i in range(min_index, max_index + 1):
+    pair = greedy_matching[i]
+    print(pair)
+    item_sub1=pair[0]
+    item_sub2=pair[1]
+
+    # Paths and subject information
+    stc_path = "/Users/minoolou/Desktop/1/M87160608+Study20151230+eyesclosedopen_session1_raw_EC_segment_new_l_raw.stc-lh.stc"
+    os.environ["SUBJECTS_DIR"] = "/Users/minoolou/Desktop/freesurfer/MNE-sample-data/subjects"
+    subject = "fsaverage"
+    output_dir = "/Users/minoolou/Desktop/1/A00063430"
+
+    # Load the source estimate data for the right hemisphere
+    stc = mne.read_source_estimate(stc_path, subject=subject)
+
+
+    def center_of_mass(self, subject=None, hemi=None, restrict_vertices=False,
+                        subjects_dir=None, surf='sphere'):
+            if not isinstance(surf, string_types):
+                raise TypeError('surf must be a string, got %s' % (type(surf),))
+            subject = _check_subject(self.subject, subject)
+            if np.any(self.data < 0):
+                raise ValueError('Cannot compute COM with negative values')
+            values = np.sum(self.data, axis=1)  # sum across time
+            vert_inds = [np.arange(len(self.vertices[0])),
+                        np.arange(len(self.vertices[1])) + len(self.vertices[0])]
+            if hemi is None:
+                hemi = np.where(np.array([np.sum(values[vi])
+                                for vi in vert_inds]))[0]
+                if not len(hemi) == 1:
+                    raise ValueError('Could not infer hemisphere')
+                hemi = hemi[0]
+            if hemi not in [0, 1]:
+                raise ValueError('hemi must be 0 or 1')
+            vertices = self.vertices[hemi]
+            values = values[vert_inds[hemi]]  # left or right
+            del vert_inds
+            vertex = _center_of_mass(
+                vertices, values, hemi=['lh', 'rh'][hemi], surf=surf,
+                subject=subject, subjects_dir=subjects_dir,
+                restrict_vertices=restrict_vertices)
+            # do time center of mass by using the values across space
+            masses = np.sum(self.data, axis=0).astype(float)
+            t_ind = np.sum(masses * np.arange(self.shape[1])) / np.sum(masses)
+            t = self.tmin + self.tstep * t_ind
+            return vertex, hemi, t
+
+    def cartesian_to_spherical(x, y, z):
+        """
+        Converts Cartesian coordinates to spherical coordinates.
+        """
+        hxy = np.hypot(x, y)
+        r = np.hypot(hxy, z)
+        el = np.arctan2(z, hxy)
+        az = np.arctan2(y, x)
+        return az, el, r
+
+    def center_on_point(brain, point, distance=None):
+        """
+        Centers the view on a given point in 3D space.
+        """
+        azimuth, elevation, r = cartesian_to_spherical(*point)
+        roll = np.rad2deg(np.arctan2(np.cos(elevation), np.sin(elevation)))
+        azimuth_deg = np.rad2deg(azimuth) - 90
+        elevation_deg = 90 - np.rad2deg(elevation)
+        distance = r if distance is None else distance
+        return azimuth_deg, elevation_deg, distance, roll
+
+    # Apply Gaussian blurring to the STC data
+    stc_blurred = stc
+
+    # Define the time range
+    tmin, tmax = item_sub1/1000, 0.099
+
+    # Iterate over each time point in the specified range
+    for time_point in stc.times[(stc.times >= tmin) & (stc.times <= tmax)]:
+        # Plot the source estimate with the brain focused on the maximum activation voxel
+        brain = stc.plot(
+            subject=subject,
+            hemi='both',
+            subjects_dir=os.environ["SUBJECTS_DIR"],
+            initial_time=time_point,
+            size=(500, 400),
+            time_viewer=False,
+            show_traces=False,
+            colorbar=False,
+        )
+
+
+        max_vertex, max_time = stc.get_peak(hemi='lh', tmin=time_point, tmax=time_point)
+        vertex_coords = brain.geo['rh'].coords[max_vertex]
+        
+        # Calculate camera parameters to center on the point of interest
+        azimuth_deg, elevation_deg, distance, roll = center_on_point(brain, vertex_coords)
+
+        # Adjust the view to center around the point of interest
+        brain.show_view(
+            view="coronal",
+            roll=roll,
+            azimuth=azimuth_deg,
+            elevation=elevation_deg,
+            distance=800,
+            focalpoint=vertex_coords
+        )
+
+        # Add a text label indicating the time point
+        component_num = time_point * 1000
+        component_text = str(int(component_num)) 
+        brain.add_text(x=0.3, y=0.8, text=component_text, name='time_label', color='white')
+
+        # Save the image
+        image_path = os.path.join(output_dir, f"visualization_time_{time_point:.3f}.png")
+        brain.save_image(image_path)
+        break
+
+#second subject
+
+    # Paths and subject information
+    stc_path = "/Users/minoolou/Desktop/1/M87155237+Study20160408+eyesclosedopen_session1_raw_EC_segment_l_raw.stc-lh.stc"
+    os.environ["SUBJECTS_DIR"] = "/Users/minoolou/Desktop/freesurfer/MNE-sample-data/subjects"
+    subject = "fsaverage"
+    output_dir = "/Users/minoolou/Desktop/1/A00066226"
+
+    # Load the source estimate data for the right hemisphere
+
+    stc = mne.read_source_estimate(stc_path, subject=subject)
+
+    # Define the time range
+    tmin, tmax = item_sub2/1000, 0.099
+
+    # Iterate over each time point in the specified range
+    for time_point in stc.times[(stc.times >= tmin) & (stc.times <= tmax)]:
+        # Plot the source estimate with the brain focused on the maximum activation voxel
+        brain = stc.plot(
+            subject=subject,
+            hemi='both',
+            subjects_dir=os.environ["SUBJECTS_DIR"],
+            initial_time=time_point,
+            size=(500, 400),
+            time_viewer=False,
+            show_traces=False,
+            colorbar=False,
+        )
+
+        # Adjust the view to center around the point of interest
+        brain.show_view(
+            view="coronal",
+            roll=roll,
+            azimuth=azimuth_deg,
+            elevation=elevation_deg,
+            distance=800,
+            focalpoint=vertex_coords
+        )
+
+        # Add a text label indicating the time point
+        component_num = time_point * 1000
+        component_text = str(int(component_num)) 
+        brain.add_text(x=0.3, y=0.8, text=component_text, name='time_label', color='white')
+
+        # Save the image
+        image_path = os.path.join(output_dir, f"visualization_time_{time_point:.3f}.png")
+        brain.save_image(image_path)
+        break
