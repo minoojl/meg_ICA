@@ -20,71 +20,23 @@ stc = mne.read_source_estimate(stc_path, subject=subject)
 abs_data = np.abs(stc.data)
 
 # Apply Gaussian smoothing
-sigma = 2  # Adjust based on your data
+sigma = 2  
 smoothed_data = np.apply_along_axis(gaussian_filter1d, axis=1, arr=abs_data, sigma=sigma)
 
 # Define a threshold and find active vertices
-threshold = np.percentile(smoothed_data, 50)  # 80th percentile as threshold
+threshold = np.percentile(smoothed_data, 50)  # 50th percentile as threshold
 active_vertices = np.where(smoothed_data.mean(axis=1) > threshold)[0]
 
-# For simplicity, we'll assume active_data is the data for active vertices
+# active_data is the data for active vertices
 active_data = smoothed_data[active_vertices]
 
 # Function to find the center of mass
 def find_center_of_mass(data, vertices):
 
-    mass = np.sum(data, axis=1)  # Sum data across time to get the "mass" of each vertex
+    mass = np.sum(data)  # Sum active data
     center_of_mass_value = np.argmax(mass)  # Find the index of the highest "mass"
     center_of_mass_index = vertices[center_of_mass_value]  # Map to original vertex index
     return center_of_mass_index
-
-# Compute center of mass for active vertices
-com_index = find_center_of_mass(active_data, active_vertices)
-
-num_vertices_left = len(stc.vertices[0])
-
-# Check if each active vertex is in the left or right hemisphere
-hemisphere_counts = {"left": 0, "right": 0}
-for vertex in active_vertices:
-    if vertex < num_vertices_left:
-        hemisphere_counts["left"] += 1
-    else:
-        hemisphere_counts["right"] += 1
-
-# Determine the hemisphere with more active regions
-if hemisphere_counts["left"] > hemisphere_counts["right"]:
-    active_hemisphere = "left"
-elif hemisphere_counts["left"] < hemisphere_counts["right"]:
-    active_hemisphere = "right"
-else:
-    active_hemisphere = "both equally active"
-
-print("The active region is primarily on the", active_hemisphere, "hemisphere.")
-
-if active_hemisphere == "left":
-    hemi_for_mni = 0  # Use 0 for left hemisphere in MNI conversion
-elif active_hemisphere == "right":
-    hemi_for_mni = 1 
-
-mni_coordinates = mne.vertex_to_mni(com_index, hemis=hemi_for_mni, subject=subject, subjects_dir=subjects_dir)
-
-print(f"Center of Mass MNI Coordinates: {mni_coordinates}")
-print(mni_coordinates)
-
-
-x=mni_coordinates[0]
-y=mni_coordinates[1]
-z=mni_coordinates[2]
-
-point=[x,y,z]
-
-
-if x > 0:
-    hemisphere = "Right"
-else:
-    hemisphere = "Left"
-
-print(f"The active region is in the {hemisphere} Hemisphere.")
 
 def cartesian_to_spherical(x, y, z):
     hxy = np.hypot(x, y)
@@ -110,22 +62,59 @@ def center_on_point(point):
     return azimuth_deg, elevation_deg, roll
 
 
-distance=800
-
-# Convert to visualization parameters
-azimuth_deg, elevation_deg, roll = center_on_point(point)
-
-print(f"Azimuth (deg): {azimuth_deg}")
-print(f"Elevation (deg): {elevation_deg}")
-print(f"Roll: {roll}")
-print(point)
-
-
 # Define the time range
-tmin, tmax = 0.073, 0.099
+tmin, tmax = 0.074, 0.099
 
 #iterate over each time point in the specified range and visualize
 for time_point in stc.times[(stc.times >= tmin) & (stc.times <= tmax)]:
+
+    time_idx = np.where(stc.times == time_point)[0][0]  # This finds the index of time_point in stc.times
+
+    # Compute center of mass for active vertices at this time index
+    com_index = find_center_of_mass(active_data[:,time_idx], active_vertices) 
+
+    num_vertices_left = len(stc.vertices[0])
+
+# Check if each active vertex is in the left or right hemisphere
+    hemisphere_counts = {"left": 0, "right": 0}
+    for vertex in active_vertices:
+        if vertex < num_vertices_left:
+            hemisphere_counts["left"] += 1
+        else:
+            hemisphere_counts["right"] += 1
+
+# Determine the hemisphere with more active regions
+    if hemisphere_counts["left"] > hemisphere_counts["right"]:
+        active_hemisphere = "left"
+    elif hemisphere_counts["left"] < hemisphere_counts["right"]:
+        active_hemisphere = "right"
+    else:
+        active_hemisphere = "both equally active"
+
+    if active_hemisphere == "left":
+        hemi_for_mni = 0  # Use 0 for left hemisphere in MNI conversion
+    elif active_hemisphere == "right":
+        hemi_for_mni = 1 
+
+    mni_coordinates = mne.vertex_to_mni(com_index, hemis=hemi_for_mni, subject=subject, subjects_dir=subjects_dir)
+
+    print(f"Center of Mass MNI Coordinates: {mni_coordinates}")
+    print(mni_coordinates)
+
+    x=mni_coordinates[0]
+    y=mni_coordinates[1]
+    z=mni_coordinates[2]
+
+    point=[x,y,z]
+
+    # Convert to visualization parameters
+    azimuth_deg, elevation_deg, roll = center_on_point(point)
+
+    print(f"Azimuth (deg): {azimuth_deg}")
+    print(f"Elevation (deg): {elevation_deg}")
+    print(f"Roll: {roll}")
+    print(point)
+
     brain = stc.plot(
         subject=subject,
         hemi='both',
@@ -137,7 +126,7 @@ for time_point in stc.times[(stc.times >= tmin) & (stc.times <= tmax)]:
         colorbar=False,
     )
 
-        # Adjust the view to center around the maximum activation voxel
+    # Adjust the view to center around the maximum activation voxel
     brain.show_view(
         view="coronal",
         roll=roll,
@@ -146,11 +135,11 @@ for time_point in stc.times[(stc.times >= tmin) & (stc.times <= tmax)]:
         distance=800,
     )
 
-    component_num = time_point * 1000
+    component_num = time_point*1000
     component_text = str(int(component_num)) 
     brain.add_text(x=0.3, y=0.8, text=component_text, name='time_label', color='white')
 
-    # Optionally, save the brain view to an image
+    #save the brain view to an image
     image_path = os.path.join(output_dir, f"COM_visualization_time_{time_point:.3f}.png")
     brain.save_image(image_path)
 
