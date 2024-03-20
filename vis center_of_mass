@@ -41,9 +41,32 @@ def find_center_of_mass(data, vertices):
 # Compute center of mass for active vertices
 com_index = find_center_of_mass(active_data, active_vertices)
 
-# Convert the center of mass vertex to MNI coordinates
-hemi = 0 if "lh" in stc_path else 1  # Determine hemisphere based on file path
-mni_coordinates = mne.vertex_to_mni(com_index, hemis=hemi, subject=subject, subjects_dir=subjects_dir)
+num_vertices_left = len(stc.vertices[0])
+
+# Check if each active vertex is in the left or right hemisphere
+hemisphere_counts = {"left": 0, "right": 0}
+for vertex in active_vertices:
+    if vertex < num_vertices_left:
+        hemisphere_counts["left"] += 1
+    else:
+        hemisphere_counts["right"] += 1
+
+# Determine the hemisphere with more active regions
+if hemisphere_counts["left"] > hemisphere_counts["right"]:
+    active_hemisphere = "left"
+elif hemisphere_counts["left"] < hemisphere_counts["right"]:
+    active_hemisphere = "right"
+else:
+    active_hemisphere = "both equally active"
+
+print("The active region is primarily on the", active_hemisphere, "hemisphere.")
+
+if active_hemisphere == "left":
+    hemi_for_mni = 0  # Use 0 for left hemisphere in MNI conversion
+elif active_hemisphere == "right":
+    hemi_for_mni = 1 
+
+mni_coordinates = mne.vertex_to_mni(com_index, hemis=hemi_for_mni, subject=subject, subjects_dir=subjects_dir)
 
 print(f"Center of Mass MNI Coordinates: {mni_coordinates}")
 print(mni_coordinates)
@@ -54,6 +77,14 @@ y=mni_coordinates[1]
 z=mni_coordinates[2]
 
 point=[x,y,z]
+
+
+if x > 0:
+    hemisphere = "Right"
+else:
+    hemisphere = "Left"
+
+print(f"The active region is in the {hemisphere} Hemisphere.")
 
 def cartesian_to_spherical(x, y, z):
     hxy = np.hypot(x, y)
@@ -128,4 +159,3 @@ for time_point in stc.times[(stc.times >= tmin) & (stc.times <= tmax)]:
     brain.save_image(image_path)
 
     break
-
