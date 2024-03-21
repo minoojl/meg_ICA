@@ -139,10 +139,6 @@ for time_point in stc.times[(stc.times >= tmin) & (stc.times <= tmax)]:
     component_text = str(int(component_num)) 
     brain.add_text(x=0.3, y=0.8, text=component_text, name='time_label', color='white')
 
-    #save the brain view to an image
-    image_path = os.path.join(output_dir, f"COM_visualization_time_{time_point:.3f}.png")
-    brain.save_image(image_path)
-
     # Save the image
     image_path = os.path.join(output_dir, f"visualization_time_{time_point:.3f}.png")
     brain.save_image(image_path)
